@@ -15,6 +15,7 @@ applications/dnn/training/sweep_results/
 applications/dnn/training/weight_update_stats/
 applications/dnn/inference/errorloop_outputs/
 applications/dnn/torch/cifar10_resnet/cifar-10-batches-py/
+tutorial/
 tutorial/.ipynb_checkpoints/
 tutorial/params_64.json
 CrossSim.egg-info/

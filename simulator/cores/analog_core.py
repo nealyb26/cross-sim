@@ -343,7 +343,7 @@ class AnalogCore:
     def set_matrix(
         self,
         matrix: npt.ArrayLike,
-        verbose: bool = False,
+        verbose: bool = True,
         error_mask: tuple[slice, slice] | None = None,
     ) -> None:
         """Programs a matrix into the AnalogCore.

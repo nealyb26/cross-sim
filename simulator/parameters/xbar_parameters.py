@@ -423,14 +423,25 @@ class WeightErrorParameters(BaseParameters):
             "GenericDevice"
         magnitude (float): Standard deviation of the random conductance error that is
             applied either as programming error or read noise when using one of the
-            generic device models. This is normalized either to either the maximum
+            generic device models. This is normalized either to the maximum
             device conductance (NormalIndependentDevice) or the target device
             conductance (NormalProportionalDevice)
+        TID_amount (int): cumulative amount of ionizing radiation in krad absorbed 
+            by devices in the CrossBar array. Only to be used by devices with
+            custom derived TID response error model - only CustomSONOS programming_error
+            at the moment. 
+        shift_csv, std_csv, alpha_mu, and alpha_sig are only used for 
+        programming_error with CustomSONOS.
     """
 
     enable: bool = False
     model: str = "IdealDevice"
     magnitude: float = 0
+    TID_amount: float = 0
+    shift_csv_loc: str = ""
+    std_csv_loc: str = ""
+    alpha_mu: float = 1.0
+    alpha_sig: float = 1.0
 
 
 @dataclass(repr=False)

@@ -23,7 +23,7 @@ from dnn_inference_params import dnn_inference_params
 # n = 9 : ResNet-56 (856K weights)
 n = 3
 
-useGPU = True # use GPU?
+useGPU = False # use GPU?
 N = 10000 # number of images
 batch_size = 64
 Nruns = 1
@@ -62,16 +62,21 @@ base_params_args = {
     'weight_percentile' : 100,
     'digital_bias' : True,
     ## Memory device
-    'Rmin' : 1e4,
-    'Rmax' : 1e6,
+    'Rmin' : 62500,
+    'Rmax' : 62500000,
     'infinite_on_off_ratio' : False,
-    'error_model' : "none",
+    'error_model' : "customSONOS",
     'alpha_error' : 0.0,
+    'TID_amount': 1500,
+    'shift_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_shift.csv",
+    'std_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_std.csv",
+    'alpha_mu': 1.0,
+    'alpha_sig': 1.0,
     'proportional_error' : False,
-    'noise_model' : "none",
+    'noise_model' : "SONOS",
     'alpha_noise' : 0.0,
     'proportional_noise' : False,
-    'drift_model' : "none",
+    'drift_model' : "SONOS",
     't_drift' : 0,
     ## Array properties
     'NrowsMax' : 1152,

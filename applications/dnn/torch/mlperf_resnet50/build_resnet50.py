@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 
 
 __all__ = ['ResNet', 'resnet50']
@@ -205,7 +206,9 @@ def _resnet(arch, block, layers, pretrained, **kwargs):
     model = ResNet(block, layers, **kwargs)
 
     if pretrained:
-        state_dict = torch.load('./resnet50_mlperf.pth')
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        pth_path = os.path.join(script_dir, "resnet50_mlperf.pth")
+        state_dict = torch.load(pth_path)
         model.load_state_dict(state_dict['state_dict'], strict=True)
 
     return model

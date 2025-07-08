@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 def find_adc_range(params_args, n_layers):
     """
@@ -32,7 +33,7 @@ def find_adc_range(params_args, n_layers):
     #   - Whether input bit accumulation is done in analog (relevant for offset and bit slicing)
     #   - For balanced core, whether current is subtracted in analog (here, always assumed true)
  
-    limits_dir = "./calibrated_config/"
+    limits_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibrated_config\\")
 
     if adc_bits > 0 and adc_range_option == "CALIBRATED":
 

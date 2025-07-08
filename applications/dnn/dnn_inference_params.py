@@ -76,6 +76,12 @@ def dnn_inference_params(**kwargs):
     input_bitslicing = kwargs.get("input_bitslicing",False)
     input_slice_size = kwargs.get("input_slice_size",1)
     adc_per_ibit = kwargs.get("adc_per_ibit",False)
+
+    TID_amount = kwargs.get("TID_amount", 0)
+    shift_csv_loc = kwargs.get("shift_csv_loc", "")
+    std_csv_loc = kwargs.get("std_csv_loc", "")
+    alpha_mu = kwargs.get("alpha_mu", 1.0)
+    alpha_sig = kwargs.get("alpha_sig", 1.0)
     
     ################  create parameter objects with all core settings
     params = CrossSimParameters()
@@ -143,6 +149,11 @@ def dnn_inference_params(**kwargs):
     elif error_model != "generic" and error_model != "none":
         params.xbar.device.programming_error.enable = True
         params.xbar.device.programming_error.model = error_model
+        params.xbar.device.programming_error.TID_amount = TID_amount
+        params.xbar.device.programming_error.shift_csv_loc = shift_csv_loc
+        params.xbar.device.programming_error.std_csv_loc = std_csv_loc
+        params.xbar.device.programming_error.alpha_mu = alpha_mu
+        params.xbar.device.programming_error.alpha_sig = alpha_sig
 
     # Drift
     if drift_model != "none":

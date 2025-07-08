@@ -18,7 +18,7 @@ from .custom.PCM_Joshi import PCMJoshi
 from .custom.RRAM_Milo import RRAMMilo
 from .custom.RRAM_Wan import RRAMWan
 from .custom.SONOS import SONOS
-
+from .custom.customSONOS import customSONOS
 from typing import Any
 
 from simulator.backend import ComputeBackend

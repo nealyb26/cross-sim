@@ -4,12 +4,14 @@ benchmark model on ImageNet.
 """
 
 import torch
+import os
 import numpy as np
 import warnings, sys, time
 from build_resnet50 import resnet50
 from torch.utils.data import TensorDataset, DataLoader
 warnings.filterwarnings('ignore')
-sys.path.append("../../") # to import dnn_inference_params
+# sys.path.append("../../") # to import dnn_inference_params
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../dnn')))
 sys.path.append("../../../../") # to import simulator
 from simulator import CrossSimParameters
 from simulator.algorithms.dnn.torch.convert import from_torch, convertible_modules, reinitialize
@@ -21,6 +23,7 @@ N = 1000 # number of images
 batch_size = 32
 Nruns = 1
 print_progress = True
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 print("ImageNet: using "+("GPU" if useGPU else "CPU"))
 print("Number of images: {:d}".format(N))
@@ -82,7 +85,7 @@ base_params_args = {
     }
 
 ### Load input limits
-input_ranges = np.load("./calibrated_config/dac_limits_ResNet50v15.npy")
+input_ranges = np.load(os.path.join(script_dir, "calibrated_config\dac_limits_ResNet50v15.npy"))
 
 ### Load ADC limits
 adc_ranges = find_adc_range(base_params_args, n_layers)
@@ -100,7 +103,7 @@ analog_resnet50 = from_torch(resnet50_model, params_list, fuse_batchnorm=True, b
 
 #### Load pre-processed ImageNet dataset
 # Make sure this comes after params are set since the params can affect batch size
-imagenet_path = "../../../../../../imagenet/"
+imagenet_path = os.path.abspath(os.path.join(script_dir, "../../../../../../imagenet/"))
 if N <= 1000:
     x = np.load(imagenet_path + "x_val_MLperfRN50_1000.npy")[:N,:,:,:]
 elif N <= 25000:
