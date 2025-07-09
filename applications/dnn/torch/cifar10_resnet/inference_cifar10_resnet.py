@@ -24,7 +24,7 @@ from dnn_inference_params import dnn_inference_params
 n = 3
 
 useGPU = False # use GPU?
-N = 10000 # number of images
+N = 100 # number of images
 batch_size = 64
 Nruns = 1
 print_progress = True
@@ -67,7 +67,7 @@ base_params_args = {
     'infinite_on_off_ratio' : False,
     'error_model' : "customSONOS",
     'alpha_error' : 0.0,
-    'TID_amount': 1500,
+    'TID_amount': 100,
     'shift_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_shift.csv",
     'std_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_std.csv",
     'alpha_mu': 1.0,
