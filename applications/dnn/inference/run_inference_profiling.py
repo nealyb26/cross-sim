@@ -72,9 +72,14 @@ check_profiling_settings(config, profile_DAC_inputs, profile_ADC_inputs, profile
 if profile_ADC_inputs:
     ibit_msg = ("_ibits" if config.input_bitslicing else "")
     relu_msg = ("_reluAware" if profile_ADC_reluAware else "")
-    profiling_folder = "./adc/profiled_adc_inputs/"+\
-        str(config.task)+"_"+str(config.model_name)+"_"+\str(config.NrowsMax)+"rows_"+\
-        str(config.Nslices)+"slices_"+config.style+ibit_msg+relu_msg+"/"
+    profiling_folder = (
+            "./adc/profiled_adc_inputs/"
+            + str(config.task) + "_"
+            + str(config.model_name) + "_"
+            + str(config.NrowsMax) + "rows_"
+            + str(config.Nslices) + "slices_"
+            + config.style + ibit_msg + relu_msg + "/"
+        )
 
 elif profile_DAC_inputs:
     profiling_folder = "./adc/profiled_dac_inputs/"+str(config.task)+"_"+str(config.model_name)+"/"

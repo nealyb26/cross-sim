@@ -117,7 +117,7 @@ def calibrate_adc_limits(
                 adc_inputs_k,
                 num_slices,
                 style = layer.params.core.bit_sliced.style,
-                Nrows = Nrows,
+                Nrows = layer.core.shape[1],
                 pct = bitslice_pct,
             )
         k += 1
@@ -195,8 +195,8 @@ def optimize_adc_limits_bitsliced(
         # Compute how much the ADC limits can be divided from the maximum possible,
         # and still cover the percentile extreme values
         clip_power_i = xp.floor(xp.log2(1/p_out)).astype(int)
-        adc_limits_k[i_slice,0] = -Nrows / 2**clip_power_i
-        adc_limits_k[i_slice,1] = Nrows / 2**clip_power_i
+        adc_limits_k[i_slice,0] = float(-Nrows / 2**clip_power_i)
+        adc_limits_k[i_slice,1] = float(Nrows / 2**clip_power_i)
 
     return adc_limits_k
 

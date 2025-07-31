@@ -6,7 +6,10 @@
 #
 
 import numpy as np
-
+try:
+    import cupy as cp
+except ImportError:
+    cp = None
 from .wrapper_core import WrapperCore
 from simulator.parameters.core_parameters import BalancedCoreStyle
 from simulator.circuits.adc.adc import ADC
@@ -366,6 +369,13 @@ class BalancedCore(WrapperCore):
             output = output[: self.W_shape[0], : self.W_shape[1]]
 
         output /= self.params.xbar.device.Grange_norm
+        
+        # Ensure self.max is on the same device as output (GPU/CPU compatibility)
+        if hasattr(output, 'get') and not hasattr(self.max, 'get'):  # output is CuPy, self.max is NumPy
+            self.max = xp.asarray(self.max)
+        elif not hasattr(output, 'get') and hasattr(self.max, 'get'):  # output is NumPy, self.max is CuPy
+            self.max = self.max.get()
+            
         output *= self.max
         return output
 

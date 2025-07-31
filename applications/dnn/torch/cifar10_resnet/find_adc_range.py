@@ -36,7 +36,8 @@ def find_adc_range(params_args, n_layers, depth):
 
     if adc_bits > 0 and adc_range_option == "CALIBRATED":
 
-        if Nslices == 1:
+        # use original calibrated ADC range.
+        if Nslices == 1 and params_args['input_slice_size'] == 1:
             if style == "BALANCED" and NrowsMax >= 576 and not adc_per_ibit and subtract_current_in_xbar:
                 adc_ranges = np.load(limits_dir+"adc_limits_ResNet{:d}_balanced.npy".format(depth))
 
@@ -45,6 +46,13 @@ def find_adc_range(params_args, n_layers, depth):
 
             elif style == "OFFSET" and NrowsMax >= 576 and adc_per_ibit:
                 adc_ranges = np.load(limits_dir+"adc_limits_ResNet{:d}_offset.npy".format(depth))
+        
+        # use new calibrated ADC ranges
+        elif (Nslices > 1 or params_args['input_slice_size'] > 1):
+            print("Choosing from new ADC Ranges")
+            adc_ranges = np.load(limits_dir+"tid_adc/adc_limits_ResNet{:d}_balanced_i{}_w{}.npy".format(depth,
+                                                                                                        params_args['input_slice_size'],
+                                                                                                        Nslices))
         else:
             raise ValueError("No calibrated ADC range found for the combination of crossbar style, adc_per_ibit and # slices")
 

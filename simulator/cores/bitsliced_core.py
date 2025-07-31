@@ -6,6 +6,10 @@
 #
 
 import numpy as np
+try:
+    import cupy as cp
+except ImportError:
+    cp = None
 from .wrapper_core import WrapperCore
 from simulator.parameters.core_parameters import BitSlicedCoreStyle, OffsetCoreStyle
 from simulator.backend import ComputeBackend

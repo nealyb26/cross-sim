@@ -23,9 +23,9 @@ from dnn_inference_params import dnn_inference_params
 # n = 9 : ResNet-56 (856K weights)
 n = 3
 
-useGPU = False # use GPU?
+useGPU = True # use GPU?
 N = 100 # number of images
-batch_size = 64
+batch_size = 32
 Nruns = 1
 print_progress = True
 
@@ -68,8 +68,8 @@ base_params_args = {
     'error_model' : "customSONOS",
     'alpha_error' : 0.0,
     'TID_amount': 100,
-    'shift_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_shift.csv",
-    'std_csv_loc': "C:/Users/Owner/OneDrive - Vanderbilt/Desktop/Misc Engineering/VUSRP Resources/aimc_testbed/examples/sonos_current_std.csv",
+    'shift_csv_loc': "/home/bagain/aimc_testbed/examples/sonos_current_shift.csv",
+    'std_csv_loc': "/home/bagain/aimc_testbed/examples/sonos_current_std.csv",
     'alpha_mu': 1.0,
     'alpha_sig': 1.0,
     'proportional_error' : False,
@@ -98,6 +98,9 @@ base_params_args = {
     ## Simulation parameters
     'useGPU' : useGPU
     }
+
+print(f"Parameters for Single RESNET Run:")
+print(base_params_args)
 
 ### Load input limits
 input_ranges = np.load("./calibrated_config/input_limits_ResNet{:d}.npy".format(depth))

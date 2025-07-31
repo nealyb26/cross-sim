@@ -4,8 +4,15 @@ Run this after calibrating crossbar inputs!
 """
 
 import torch
+import itertools
+import gc
+import json
 from torchvision import datasets, transforms
 import numpy as np
+try:
+    import cupy as cp
+except ImportError:
+    cp = None
 import warnings, sys, time
 from build_resnet_cifar10 import ResNet_cifar10
 warnings.filterwarnings('ignore')
@@ -26,8 +33,8 @@ from calibration import calibrate_adc_limits
 n = 3
 
 useGPU = True # use GPU?
-N = 500 # number of images from the TRAINING set
-batch_size = 32
+N = 100 # number of images from the TRAINING set
+batch_size = 4
 Nruns = 1
 print_progress = True
 
@@ -38,6 +45,12 @@ print("Number of images: {:d}".format(N))
 print("Number of runs: {:d}".format(Nruns))
 print("Batch size: {:d}".format(batch_size))
 device = torch.device("cuda:0" if (torch.cuda.is_available() and useGPU) else "cpu")
+
+def print_gpu_memory():
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        cached = torch.cuda.memory_reserved() / 1024**3
+        print(f"GPU Memory - Allocated: {allocated:.2f}GB, Cached: {cached:.2f}GB")
 
 ##### Load Pytorch model
 resnet_model = ResNet_cifar10(n)
@@ -64,16 +77,18 @@ base_params_args = {
     'weight_percentile' : 100,
     'digital_bias' : True,
     ## Memory device
-    'Rmin' : 1e4,
-    'Rmax' : 1e6,
-    'infinite_on_off_ratio' : True,
-    'error_model' : "none",
+    'Rmin' : 62500,
+    'Rmax' : 62500000,
+    'infinite_on_off_ratio' : False,
+    'error_model' : "customSONOS",
+    'shift_csv_loc': "/home/bagain/aimc_testbed/examples/sonos_current_shift.csv",
+    'std_csv_loc': "/home/bagain/aimc_testbed/examples/sonos_current_std.csv",
     'alpha_error' : 0.0,
     'proportional_error' : False,
-    'noise_model' : "none",
+    'noise_model' : "SONOS",
     'alpha_noise' : 0.0,
     'proportional_noise' : False,
-    'drift_model' : "none",
+    'drift_model' : "SONOS",
     't_drift' : 0,
     ## Array properties
     'NrowsMax' : 1152,
@@ -99,61 +114,103 @@ base_params_args = {
     'ntest' : N,
     }
 
+#### load params that each will have a set of input values created and stored in calibrated_config
+with open("params_to_calibrate.json", "r") as f:
+    params_dict = json.load(f)
+param_names  = list(params_dict.keys())   # e.g. ["Nslices", "input_slice_sizes"]
+sweep_values = list(params_dict.values())
+
+
 ### Load input limits
 input_ranges = np.load("./calibrated_config/input_limits_ResNet{:d}.npy".format(depth))
 
-### Set the parameters
-for k in range(n_layers):
-    params_args_k = base_params_args.copy()
-    params_args_k['positiveInputsOnly'] = (False if k == 0 else True)
-    params_args_k['input_range'] = input_ranges[k]
-    params_list[k] = dnn_inference_params(**params_args_k)
+# sweep throught the params stored in JSON
+# combo = cartesian product of lists in sweep_values
+for combo in itertools.product(*sweep_values):
 
-#### Convert PyTorch layers to analog layers
-analog_resnet = from_torch(resnet_model, params_list, fuse_batchnorm=True, bias_rows=0)
+    this_params = base_params_args.copy()
+    # generic "name of param -> param value" insertion into list of params
+    for name, value in zip(param_names, combo):
+        this_params[name] = value
 
-#### Load and transform CIFAR-10 dataset
-normalize = transforms.Normalize(
-    mean = [0.485, 0.456, 0.406],
-    std  = [0.229, 0.224, 0.225])
-dataset = datasets.CIFAR10(root='./',train=True, download=True, 
-    transform= transforms.Compose([transforms.ToTensor(), normalize]))
-dataset = torch.utils.data.Subset(dataset, np.arange(N))
-cifar10_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+    # slice-size used to set "input_bitslicing" flag
+    input_slice_size = this_params.get("input_slice_sizes", 1)
+    nSlices = this_params.get("Nslices", 1)
+    this_params["input_bitslicing"] = (input_slice_size > 1)
 
-#### Run inference and evaluate accuracy
-T1 = time.time()
-y_pred, y, k = np.zeros(N), np.zeros(N), 0
-for inputs, labels in cifar10_dataloader:
-    inputs = inputs.to(device)
-    output = analog_resnet(inputs)
-    output = output.to(device)
-    y_pred_k = output.data.cpu().detach().numpy()
-    if batch_size == 1:
-        y_pred[k] = y_pred_k.argmax()
-        y[k] = labels.cpu().detach().numpy()
-        k += 1
-    else:
-        batch_size_k = y_pred_k.shape[0]
-        y_pred[k:(k+batch_size_k)] = y_pred_k.argmax(axis=1)
-        y[k:(k+batch_size_k)] = labels.cpu().detach().numpy()
-        k += batch_size_k
-    if print_progress:
-        print("Image {:d}/{:d}, accuracy so far = {:.2f}%".format(
-            k, N, 100*np.sum(y[:k] == y_pred[:k])/k), end="\r")
+    ### Set the parameters
+    for k in range(n_layers):
+        params_args_k = this_params.copy()
+        params_args_k['positiveInputsOnly'] = (False if k == 0 else True)
+        params_args_k['input_range'] = input_ranges[k]
+        params_list[k] = dnn_inference_params(**params_args_k)
 
-T2 = time.time()
-top1 = np.sum(y == y_pred)/len(y)
-print("\nInference finished. Elapsed time: {:.3f} sec".format(T2-T1))
-print('Accuracy: {:.2f}% ({:d}/{:d})\n'.format(top1*100,int(top1*N),N))
+    #### Convert PyTorch layers to analog layers
+    analog_resnet = from_torch(resnet_model, params_list, fuse_batchnorm=True, bias_rows=0)
 
-#### Retrieve profiled inputs and calibrate limits
-print("Collecting profiled ADC data")
-profiled_adc_inputs = get_profiled_adc_inputs(analog_resnet)
-print("Optimizing ADC limits")
-calibrated_adc_ranges = calibrate_adc_limits(
-    analog_modules(analog_resnet), profiled_adc_inputs, Nbits=8)
+    #### Load and transform CIFAR-10 dataset
+    normalize = transforms.Normalize(
+        mean = [0.485, 0.456, 0.406],
+        std  = [0.229, 0.224, 0.225])
+    dataset = datasets.CIFAR10(root='./',train=True, download=True, 
+        transform= transforms.Compose([transforms.ToTensor(), normalize]))
+    dataset = torch.utils.data.Subset(dataset, np.arange(N))
+    cifar10_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
-## Make sure the file name matches the parameters used!!
-# np.save("./calibrated_config/adc_limits_ResNet{:d}_balanced.npy".format(depth),
-    # calibrated_adc_ranges)
+    #### Run inference and evaluate accuracy
+    T1 = time.time()
+    y_pred, y, k = np.zeros(N), np.zeros(N), 0
+    
+    for inputs, labels in cifar10_dataloader:
+        inputs = inputs.to(device)
+        output = analog_resnet(inputs)
+        output = output.to(device)
+        y_pred_k = output.data.cpu().detach().numpy()
+        if batch_size == 1:
+            y_pred[k] = y_pred_k.argmax()
+            y[k] = labels.cpu().detach().numpy()
+            k += 1
+        else:
+            batch_size_k = y_pred_k.shape[0]
+            y_pred[k:(k+batch_size_k)] = y_pred_k.argmax(axis=1)
+            y[k:(k+batch_size_k)] = labels.cpu().detach().numpy()
+            k += batch_size_k
+        if print_progress:
+            print("Image {:d}/{:d}, accuracy so far = {:.2f}%".format(
+                k, N, 100*np.sum(y[:k] == y_pred[:k])/k), end="\r")
+
+    T2 = time.time()
+    top1 = np.sum(y == y_pred)/len(y)
+    print("\nInference finished. Elapsed time: {:.3f} sec".format(T2-T1))
+    print('Accuracy: {:.2f}% ({:d}/{:d})\n'.format(top1*100,int(top1*N),N))
+
+    #### Retrieve profiled inputs and calibrate limits
+    print("Collecting profiled ADC data")
+    profiled_adc_inputs = get_profiled_adc_inputs(analog_resnet)
+    print_gpu_memory()
+    print("Optimizing ADC limits")
+    calibrated_adc_ranges = calibrate_adc_limits(
+        analog_modules(analog_resnet), profiled_adc_inputs, Nbits=8)
+    
+    for i, arr in enumerate(calibrated_adc_ranges):
+        print(f"Layer {i} Shape: {arr.shape}")
+
+    print_gpu_memory()
+
+    ## Make sure the file name matches the parameters used!!
+    np.save("./calibrated_config/tid_adc/adc_limits_ResNet{:d}_balanced_i{}_w{}.npy".format(depth, 
+                                                                                       input_slice_size, 
+                                                                                       nSlices),
+            calibrated_adc_ranges)
+    
+    # Some Desperate GPU Memory Management
+    del analog_resnet, profiled_adc_inputs, calibrated_adc_ranges
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+    if cp:
+        try:
+            cp.get_default_memory_pool().free_all_blocks()
+            cp.get_default_pinned_memory_pool().free_all_blocks()
+        except Exception as e:
+            print(f"Warning: Could not free CuPy memory: {e}")

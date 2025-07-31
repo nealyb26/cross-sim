@@ -3,6 +3,8 @@ Script to obtain calibrated crossbar input ranges for CIFAR-10 ResNets.
 """
 
 import torch
+import itertools
+import json
 from torchvision import datasets, transforms
 import numpy as np
 import warnings, sys, time
@@ -99,58 +101,80 @@ base_params_args = {
     'ntest' : N,
     }
 
-### Set the parameters
-for k in range(n_layers):
-    params_args_k = base_params_args.copy()
-    params_args_k['positiveInputsOnly'] = (False if k == 0 else True)
-    params_list[k] = dnn_inference_params(**params_args_k)
+#### load params that each will have a set of input values created and stored in calibrated_config
+with open("params_to_calibrate.json", "r") as f:
+    params_dict = json.load(f)
+param_names  = list(params_dict.keys())   # e.g. ["Nslices", "input_slice_sizes"]
+sweep_values = list(params_dict.values())
 
-#### Convert PyTorch layers to analog layers
-analog_resnet = from_torch(resnet_model, params_list, fuse_batchnorm=True, bias_rows=0)
+# sweep - no matter how many params added to JSON
+# combo = cartesian product of lists in sweep_values
+for combo in itertools.product(*sweep_values):
 
-#### Load and transform CIFAR-10 dataset
-normalize = transforms.Normalize(
-    mean = [0.485, 0.456, 0.406],
-    std  = [0.229, 0.224, 0.225])
-dataset = datasets.CIFAR10(root='./',train=True, download=True, 
-    transform= transforms.Compose([transforms.ToTensor(), normalize]))
-dataset = torch.utils.data.Subset(dataset, np.arange(N))
-cifar10_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+    this_params = base_params_args.copy()
+    # generic "name -> value" insertion
+    for name, value in zip(param_names, combo):
+        this_params[name] = value
 
-#### Run inference and evaluate accuracy
-T1 = time.time()
-y_pred, y, k = np.zeros(N), np.zeros(N), 0
-for inputs, labels in cifar10_dataloader:
-    inputs = inputs.to(device)
-    output = analog_resnet(inputs)
-    output = output.to(device)
-    y_pred_k = output.data.cpu().detach().numpy()
-    if batch_size == 1:
-        y_pred[k] = y_pred_k.argmax()
-        y[k] = labels.cpu().detach().numpy()
-        k += 1
-    else:
-        batch_size_k = y_pred_k.shape[0]
-        y_pred[k:(k+batch_size_k)] = y_pred_k.argmax(axis=1)
-        y[k:(k+batch_size_k)] = labels.cpu().detach().numpy()
-        k += batch_size_k
-    if print_progress:
-        print("Image {:d}/{:d}, accuracy so far = {:.2f}%".format(
-            k, N, 100*np.sum(y[:k] == y_pred[:k])/k), end="\r")
+    # slice-size used to set "input_bitslicing" flag
+    slice_size = this_params.get("input_slice_sizes", 1)
+    Nslices = this_params.get("Nslices", 1)
+    this_params["input_bitslicing"] = (slice_size > 1)
 
-T2 = time.time()
-top1 = np.sum(y == y_pred)/len(y)
-print("\nInference finished. Elapsed time: {:.3f} sec".format(T2-T1))
-print('Accuracy: {:.2f}% ({:d}/{:d})\n'.format(top1*100,int(top1*N),N))
+    ### Set the parameters
+    for k in range(n_layers):
+        params_args_k = base_params_args.copy()
+        params_args_k['positiveInputsOnly'] = (False if k == 0 else True)
+        params_list[k] = dnn_inference_params(**params_args_k)
 
-#### Retrieve profiled inputs and calibrate limits
-print("Collecting profiled data")
-profiled_inputs = get_profiled_xbar_inputs(analog_resnet)
-print("Optimizing input limits")
-calibrated_ranges = calibrate_input_limits(profiled_inputs, Nbits=8)
+    #### Convert PyTorch layers to analog layers
+    analog_resnet = from_torch(resnet_model, params_list, fuse_batchnorm=True, bias_rows=0)
 
-# Manually calibrate first layer's limits based on value range of CIFAR-10 images
-calibrated_ranges[0,:] = np.array([-2.64, 2.64])
+    #### Load and transform CIFAR-10 dataset
+    normalize = transforms.Normalize(
+        mean = [0.485, 0.456, 0.406],
+        std  = [0.229, 0.224, 0.225])
+    dataset = datasets.CIFAR10(root='./',train=True, download=True, 
+        transform= transforms.Compose([transforms.ToTensor(), normalize]))
+    dataset = torch.utils.data.Subset(dataset, np.arange(N))
+    cifar10_dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
-np.save("./calibrated_config/input_limits_ResNet{:d}.npy".format(depth),
-    calibrated_ranges)
+    #### Run inference and evaluate accuracy
+    T1 = time.time()
+    y_pred, y, k = np.zeros(N), np.zeros(N), 0
+    for inputs, labels in cifar10_dataloader:
+        inputs = inputs.to(device)
+        output = analog_resnet(inputs)
+        output = output.to(device)
+        y_pred_k = output.data.cpu().detach().numpy()
+        if batch_size == 1:
+            y_pred[k] = y_pred_k.argmax()
+            y[k] = labels.cpu().detach().numpy()
+            k += 1
+        else:
+            batch_size_k = y_pred_k.shape[0]
+            y_pred[k:(k+batch_size_k)] = y_pred_k.argmax(axis=1)
+            y[k:(k+batch_size_k)] = labels.cpu().detach().numpy()
+            k += batch_size_k
+        if print_progress:
+            print("Image {:d}/{:d}, accuracy so far = {:.2f}%".format(
+                k, N, 100*np.sum(y[:k] == y_pred[:k])/k), end="\r")
+
+    T2 = time.time()
+    top1 = np.sum(y == y_pred)/len(y)
+    print("\nInference finished. Elapsed time: {:.3f} sec".format(T2-T1))
+    print('Accuracy: {:.2f}% ({:d}/{:d})\n'.format(top1*100,int(top1*N),N))
+
+    #### Retrieve profiled inputs and calibrate limits
+    print("Collecting profiled data")
+    profiled_inputs = get_profiled_xbar_inputs(analog_resnet)
+    print("Optimizing input limits")
+    calibrated_ranges = calibrate_input_limits(profiled_inputs, Nbits=8)
+
+    # Manually calibrate first layer's limits based on value range of CIFAR-10 images
+    calibrated_ranges[0,:] = np.array([-2.64, 2.64])
+
+    np.save("./calibrated_config/tid_inputs/input_limits_ResNet{:d}_i{}_w{}.npy".format(depth, 
+                                                                                        slice_size, 
+                                                                                        Nslices),
+            calibrated_ranges)

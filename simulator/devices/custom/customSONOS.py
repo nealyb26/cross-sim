@@ -61,6 +61,16 @@ class customSONOS(SONOS):
 
 
     def _interpolate_TID(self, I):
+        # Convert CuPy arrays to NumPy for compatibility with np.vectorize
+        try:
+            import cupy
+            if isinstance(I, cupy.ndarray):
+                I_cpu = cupy.asnumpy(I)
+            else:
+                I_cpu = I
+        except ImportError:
+            I_cpu = I  # CuPy not installed, so must be NumPy
+
         def interp_one(val):
 
             mu = self.interp_mu(self.TID_amount, val) #* self.alpha_mu
@@ -75,7 +85,17 @@ class customSONOS(SONOS):
             return I_prime
                 
         interp_vec = np.vectorize(interp_one)
-        return interp_vec(I)
+        result = interp_vec(I_cpu)
+        
+        # Convert result back to CuPy if input was CuPy
+        try:
+            import cupy
+            if isinstance(I, cupy.ndarray):
+                return cupy.asarray(result)
+            else:
+                return result
+        except ImportError:
+            return result
     
     def programming_error(self, input_):
         result = super().programming_error(input_)

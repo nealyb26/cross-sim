@@ -6,6 +6,7 @@ __pycache__/
 *$py.class
 *.o
 *~
+*.tar.gz
 applications/dnn/helpers/__pycache__
 applications/dnn/inference/adc/adc_dac_inputs/
 applications/dnn/inference/network_outputs/
